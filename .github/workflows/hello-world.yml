@@ -22,5 +22,5 @@ jobs:
         shell: bash
 
       - name: Run unit tests
-        run: uv test pytest
+        run: uv run pytest
         shell: bash
