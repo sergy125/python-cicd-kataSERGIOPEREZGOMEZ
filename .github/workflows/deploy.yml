@@ -1,0 +1,80 @@
+name: CI/CD Pipeline
+run-name: ${{ github.actor }} is checking code quality 🔍
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # LINTER
+  check-linter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install
+      - run: uv sync --all-extras --dev
+      - name: Run Linter
+        run: uv run ruff check .
+
+  # FORMATTER
+  check-formatter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install
+      - run: uv sync --all-extras --dev
+      - name: Check Formatting
+        run: uv run ruff format --check .
+
+  # tYPE SAFETY
+  check-type-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install
+      - run: uv sync --all-extras --dev
+      - name: Run Pyright
+        run: uv run pyright
+
+  # UNIT TESTS
+  run-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install
+      - run: uv sync --all-extras --dev
+      - name: Run Tests
+        run: uv run pytest
+
+  # BUILD & PUSH
+  build-and-push:
+
+    needs: [check-linter, check-formatter, check-type-safety, run-unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: sergy125/cicd-kata:latest
+
+  # DEPLOY
+  deploy:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deployment
+        run: |
+          curl "${{ secrets.DEPLOY_WEBHOOK_URL }}&imgURL=docker.io%2Fsergy125%2Fcicd-kata%3Alatest"
